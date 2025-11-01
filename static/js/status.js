@@ -126,8 +126,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 加载订单数据
     function loadOrdersData() {
         const token = localStorage.getItem('token');
-        
-        fetch('/api/messages', {
+        fetch('/api/status', {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
@@ -174,10 +173,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     row.innerHTML = `
                         <td>${order.id}</td>
-                        <td>${order.name}</td>
-                        <td>${order.email}</td>
+                        <td>${order.ip}</td>
+                        <td>${order.platform}</td>
+                        <td>${order.browser}</td>
                         <td>${order.created_at}</td>
-                        <td>${order.message}</td>
                         <td>${statusBadge}</td>
                         <td class="action-cell">
                             <button class="table-btn btn-view" data-id="${order.id}">查看</button>
@@ -230,11 +229,7 @@ document.addEventListener('DOMContentLoaded', function() {
             icon.style.transform = 'rotate(0)';
         }, 500);
         
-        
-        setTimeout(() => {
-            loadOrdersData();
-        }, 100);
-        
+        loadOrdersData();
     });
 
     // 导出订单
@@ -252,9 +247,9 @@ document.addEventListener('DOMContentLoaded', function() {
         usernameError.textContent = '';
         this.parentElement.classList.remove('error');
     });
-    function messageAction(act, id){
+    function ipAction(act, id){
         const token = localStorage.getItem('token');
-        fetch('/api/message/action', {
+        fetch('/api/ipconfig/action', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -278,13 +273,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .catch(error => console.error('错误:', error));
-            loadOrdersData();
+            setTimeout(() => {
+                loadOrdersData();
+            }, 100);
     };
     document.addEventListener('click', function(e){
         if (e.target.classList.contains('btn-delete')){
             const button = e.target;
             const meID = button.getAttribute('data-id');
-            messageAction('delete', meID);
+            ipAction('delete', meID);
 
         }
     });

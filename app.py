@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
+from models import Message, Recorder, db
+from services.message_service import MessageService
+from services.recorder_service import RecorderService
 from datetime import datetime
 
 app = Flask(__name__)
@@ -7,25 +9,30 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///portfolio.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
-
-# 定义联系表单数据模型
-class ContactMessage(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(100), nullable=False)
-    message = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f'<ContactMessage {self.name}>'
-
-# 创建数据库表
+db.init_app(app)
+static_token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJpYXQiOjE2ODAwMDAwMDAsImV4cCI6MTY4MDAwMzYwMH0.signature'
 with app.app_context():
     db.create_all()
+def get_client_ip():
+    """获取客户端真实IP地址"""
+    # 检查常见的代理头
+    if request.environ.get('HTTP_X_FORWARDED_FOR'):
+        ip = request.environ['HTTP_X_REAL_IP'].split(',')[0]
+    elif request.environ.get('HTTP_X_REAL_IP'):
+        ip = request.environ['HTTP_X_REAL_IP']
+    elif request.environ.get('HTTP_CLIENT_IP'):
+        ip = request.environ['HTTP_CLIENT_IP']
+    else:
+        ip = request.environ.get('REMOTE_ADDR')
+    return ip
 
 @app.route('/')
 def home():
+    client_ip = get_client_ip()
+    platform = request.headers['Sec-Ch-Ua-Platform']
+    browser = request.headers['Sec-Ch-Ua'].split(';')[0]
+    print(client_ip, platform, browser)
+    RecorderService.create_record(client_ip, platform, browser)
     return render_template('index.html', title='Welcome Page', name='John Doe')
 
 @app.route('/submit', methods=['POST'])
@@ -45,24 +52,14 @@ def submit():
         if not name or not email or not message:
             return jsonify({'error': '请填写所有必填字段'}), 400
         
-        # 创建新消息记录
-        new_message = ContactMessage(
-            name=name,
-            email=email,
-            message=message
-        )
-        
-        # 保存到数据库
-        db.session.add(new_message)
-        db.session.commit()
-        
-        print(f"消息已保存 - ID: {new_message.id}, 姓名: {name}")
+        MessageService.create_message(name, email, message)
+
+        print(f"消息已保存 - 姓名: {name}")
         
         # 返回成功响应
         return jsonify({
             'status': 'success',
-            'message': '消息接收成功，已保存到数据库',
-            'message_id': new_message.id
+            'message': '消息接收成功，已保存到数据库'
         }), 200
         
     except Exception as e:
@@ -71,19 +68,72 @@ def submit():
         return jsonify({'error': '服务器内部错误'}), 500
 
 # 可选：添加一个路由来查看所有消息（仅用于开发）
-@app.route('/messages')
+@app.route('/api/messages')
 def view_messages():
-    messages = ContactMessage.query.order_by(ContactMessage.created_at.desc()).all()
-    messages_list = []
-    for msg in messages:
-        messages_list.append({
-            'id': msg.id,
-            'name': msg.name,
-            'email': msg.email,
-            'message': msg.message,
-            'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S')
-        })
-    return jsonify(messages_list)
+    if 'Authorization' in request.headers:
+        try:
+            token = request.headers['Authorization'].split()[1]
+            if token != static_token:
+                return jsonify({
+                    'success': False,
+                    'message': 'Wrong'
+                }), 401
+            elif token == static_token:
+                messages = MessageService.get_messages()
+                messages_list = []
+                for msg in messages:
+                    messages_list.append({
+                        'id': msg.id,
+                        'name': msg.name,
+                        'email': msg.email,
+                        'message': msg.message,
+                        'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        'status': 'pending'
+                    })
+                return jsonify(messages_list)
+
+        except IndexError:
+            return jsonify({
+                'success': False,
+                'message': 'WrongToken'
+            }), 401
+    else:
+        return 'BadRequest'
+
+
+# 可选：添加一个路由来查看所有消息（仅用于开发）
+@app.route('/api/status')
+def view_status():
+    if 'Authorization' in request.headers:
+        try:
+            token = request.headers['Authorization'].split()[1]
+            if token != static_token:
+                return jsonify({
+                    'success': False,
+                    'message': 'Wrong'
+                }), 401
+            elif token == static_token:
+                records = RecorderService().get_records()
+                records_list = []
+                for msg in records:
+                    records_list.append({
+                        'id': msg.id,
+                        'ip': msg.client_ip,
+                        'platform': msg.platform,
+                        'browser': msg.browser,
+                        'created_at': msg.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        'status': 'pending'
+                    })
+                return jsonify(records_list)
+
+        except IndexError:
+            return jsonify({
+                'success': False,
+                'message': 'WrongToken'
+            }), 401
+    else:
+        return 'BadRequest'
+
 
 @app.route('/login')
 def login():
@@ -96,9 +146,44 @@ def api_login():
     
     # 简单的验证逻辑
     if username == 'admin' and password == '123':
-        return jsonify({'success': True, 'token': 'your_jwt_token_here'})
+        return jsonify({'success': True, 'token': static_token})
     else:
         return jsonify({'success': False, 'message': '用户名或密码错误'})
+@app.route('/api/message/action', methods=['POST'])
+def messageAction():
+
+    data = request.get_json()
+    act = data.get('action')
+    ID = data.get('ID')
+    if act == 'delete':
+        try:
+            MessageService.delete_message(ID)
+            return jsonify({
+                'success': True
+            })
+        except:
+            return jsonify({
+                'success': False
+            })
+@app.route('/api/ipconfig/action', methods=['POST'])
+def ipAction():
+
+    data = request.get_json()
+    act = data.get('action')
+    ID = data.get('ID')
+    if act == 'delete':
+        try:
+            RecorderService.delete_record(ID)
+            return jsonify({
+                'success': True
+            })
+        except:
+            return jsonify({
+                'success': False
+            })
+@app.route('/status')
+def status():
+    return render_template('status.html')
 
 if __name__ == '__main__':
     app.run(debug=True)

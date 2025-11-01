@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>消息管理系统</title>
-    <link rel="stylesheet" href="../static/css/login.css">
+    <title>Status Center</title>
+    <link rel="stylesheet" href="../static/css/status.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -19,7 +19,7 @@
                     <i class="fas fa-moon"></i>
                     <h1>Anime Orders</h1>
                 </div>
-                <p>消息管理系统</p>
+                <p>Status Center</p>
             </div>
             
             <form id="loginForm" class="login-form">
@@ -43,7 +43,7 @@
                 </div>
                 
                 <button type="submit" class="login-btn">
-                    <span class="btn-text">登录</span>
+                    <span class="btn-text">Login</span>
                     <div class="btn-loader">
                         <div class="loader-dot"></div>
                         <div class="loader-dot"></div>
@@ -86,7 +86,7 @@
                 <h2>Recent Messages</h2>
                 <div class="header-actions">
                     <button class="action-btn" id="refreshBtn">
-                        <i class="fas fa-sync-alt"></i> 刷新
+                        <i class="fas fa-sync-alt"></i> Refresh
                     </button>
                     <button class="action-btn" id="exportBtn">
                         <i class="fas fa-download"></i> 导出
@@ -138,10 +138,10 @@
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Date</th>
-                            <th>Message</th>
+                            <th>IP</th>
+                            <th>Platform</th>
+                            <th>Browser</th>
+                            <th>Datetime</th>
                             <th>Status</th>
                             <th>Action</th>
                         </tr>
@@ -156,6 +156,6 @@
 
     <!-- 引入粒子效果库 -->
     <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
-    <script src="../static/js/login.js"></script>
+    <script src="../static/js/status.js"></script>
 </body>
 </html>
